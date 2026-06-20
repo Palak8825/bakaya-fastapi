@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -51,7 +51,11 @@ def _to_detail(inv: Invoice, buyer: Buyer | None, events: list[EscalationEvent])
 
 
 @router.get("/invoices", response_model=list[InvoiceOut])
-def list_invoices(buyer_id: int | None = None, status: str | None = None, db: Session = Depends(get_db)):
+def list_invoices(
+    buyer_id: int | None = Query(default=None, alias="buyerId"),
+    status: str | None = None,
+    db: Session = Depends(get_db),
+):
     q = select(Invoice, Buyer).join(Buyer)
     if buyer_id is not None:
         q = q.where(Invoice.buyer_id == buyer_id)
@@ -110,6 +114,7 @@ def delete_invoice(id: int, db: Session = Depends(get_db)):
     inv = db.get(Invoice, id)
     if inv is None:
         raise HTTPException(404, "Invoice not found")
+    db.execute(delete(EscalationEvent).where(EscalationEvent.invoice_id == id))
     db.delete(inv)
     db.commit()
 
