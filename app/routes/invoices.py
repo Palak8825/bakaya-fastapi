@@ -46,6 +46,15 @@ def list_invoices(db: Session = Depends(get_db)):
     return [_to_out(inv, buyer) for inv, buyer in rows]
 
 
+@router.get("/invoices/{id}", response_model=InvoiceOut)
+def get_invoice(id: int, db: Session = Depends(get_db)):
+    row = db.execute(select(Invoice, Buyer).join(Buyer).where(Invoice.id == id)).first()
+    if row is None:
+        raise HTTPException(404, "Invoice not found")
+    inv, buyer = row
+    return _to_out(inv, buyer)
+
+
 @router.post("/invoices", response_model=InvoiceOut, status_code=status.HTTP_201_CREATED)
 def create_invoice(body: InvoiceCreate, db: Session = Depends(get_db)):
     # body is already validated by Pydantic before we get here.
