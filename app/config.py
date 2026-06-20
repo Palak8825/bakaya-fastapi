@@ -6,13 +6,16 @@ to declare ALL env vars once, as a typed Settings object, and import it. You get
 validation (a missing required var fails loudly at startup, like your index.ts
 PORT check) and autocomplete.
 """
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Pydantic-settings reads these from environment variables (or a .env file)
-    # automatically, matching by name (case-insensitive).
-    database_url: str = "sqlite:///./bakaya.db"   # swap for your Postgres URL
+    # Accepts NEON_DATABASE_URL (Replit) or DATABASE_URL (local .env) — both work.
+    database_url: str = Field(
+        default="sqlite:///./bakaya.db",
+        validation_alias=AliasChoices("neon_database_url", "database_url"),
+    )
     groq_api_key: str | None = None
 
     # Email (mirrors your notify.ts / emailer.py)
