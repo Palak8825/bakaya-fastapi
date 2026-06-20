@@ -34,12 +34,12 @@ git push -u origin main
 
 | Key | Value |
 |-----|-------|
-| `DATABASE_URL` | `postgresql+psycopg://neondb_owner:...@...neon.tech/neondb?sslmode=require` |
-| `GROQ_API_KEY` | `gsk_...` |
+| `DATABASE_URL` | `...` |
+| `GROQ_API_KEY` | `...` |
 | `EMAIL_MODE` | `real` |
-| `GMAIL_ADDRESS` | `palak.agarwal.8825@gmail.com` |
-| `GMAIL_APP_PASSWORD` | `tqeebtjjrbejzyjf` |
-| `DEMO_RECIPIENT_EMAIL` | `palak.agarwal.8825@gmail.com` |
+| `GMAIL_ADDRESS` | `` |
+| `GMAIL_APP_PASSWORD` | `` |
+| `DEMO_RECIPIENT_EMAIL` | `` |
 | `ALLOWED_ORIGINS` | `*` ← update to your Vercel URL after Step 3 |
 
 4. In the Replit Shell tab, run once to set up the database:
