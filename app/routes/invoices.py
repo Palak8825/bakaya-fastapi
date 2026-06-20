@@ -215,9 +215,9 @@ def send_notice_route(id: int, body: SendRequest, db: Session = Depends(get_db))
     )
 
     # --- Resolve recipient (demo override → buyer email) --------------------
-    recipient = body.to or settings.demo_recipient_email or buyer.email
+    recipient = body.to or buyer.email or settings.demo_recipient_email
     if not recipient:
-        raise HTTPException(422, "No recipient: set demo_recipient_email or buyer email")
+        raise HTTPException(422, "No recipient: add an email to the buyer or set demo_recipient_email")
 
     # --- Send + log + advance stage -----------------------------------------
     delivery = send_notice(to=recipient, subject=f"Payment Notice — Invoice {inv.invoice_number}", body=message)
