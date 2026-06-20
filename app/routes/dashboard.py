@@ -82,6 +82,9 @@ def dashboard_summary(db: Session = Depends(get_db)):
     )
 
 
+STAGE_ORDER = ["none", "nudge", "tax_nudge", "formal_demand", "odr_ready"]
+
+
 @router.get("/dashboard/overdue-breakdown", response_model=list[OverdueStageOut])
 def overdue_breakdown(db: Session = Depends(get_db)):
     invoices = db.execute(select(Invoice)).scalars().all()
@@ -90,9 +93,6 @@ def overdue_breakdown(db: Session = Depends(get_db)):
 
     for inv in invoices:
         if inv.status == "paid":
-            continue
-        calc = calculate_interest(float(inv.amount), inv.invoice_date)
-        if calc["msmedDaysOverdue"] <= 0:
             continue
         stage = inv.escalation_stage or "none"
         stage_count[stage] += 1
@@ -105,7 +105,8 @@ def overdue_breakdown(db: Session = Depends(get_db)):
             amount=round(stage_amount[stage], 2),
             label=STAGE_LABELS.get(stage, stage),
         )
-        for stage in stage_count
+        for stage in STAGE_ORDER
+        if stage in stage_count
     ]
 
 
