@@ -41,8 +41,13 @@ def _to_out(inv: Invoice, buyer: Buyer | None = None) -> InvoiceOut:
 
 
 @router.get("/invoices", response_model=list[InvoiceOut])
-def list_invoices(db: Session = Depends(get_db)):
-    rows = db.execute(select(Invoice, Buyer).join(Buyer)).all()
+def list_invoices(buyer_id: int | None = None, status: str | None = None, db: Session = Depends(get_db)):
+    q = select(Invoice, Buyer).join(Buyer)
+    if buyer_id is not None:
+        q = q.where(Invoice.buyer_id == buyer_id)
+    if status is not None:
+        q = q.where(Invoice.status == status)
+    rows = db.execute(q).all()
     return [_to_out(inv, buyer) for inv, buyer in rows]
 
 
@@ -67,6 +72,28 @@ def create_invoice(body: InvoiceCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(inv)
     return _to_out(inv)
+
+
+@router.delete("/invoices/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_invoice(id: int, db: Session = Depends(get_db)):
+    inv = db.get(Invoice, id)
+    if inv is None:
+        raise HTTPException(404, "Invoice not found")
+    db.delete(inv)
+    db.commit()
+
+
+@router.post("/invoices/{id}/mark-paid", response_model=InvoiceOut)
+def mark_paid(id: int, db: Session = Depends(get_db)):
+    row = db.execute(select(Invoice, Buyer).join(Buyer).where(Invoice.id == id)).first()
+    if row is None:
+        raise HTTPException(404, "Invoice not found")
+    inv, buyer = row
+    inv.status = "paid"
+    inv.escalation_stage = "none"
+    db.commit()
+    db.refresh(inv)
+    return _to_out(inv, buyer)
 
 
 @router.post("/invoices/{id}/send", response_model=SendResult)

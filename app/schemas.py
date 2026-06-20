@@ -31,6 +31,9 @@ class BuyerCreate(CamelModel):
     contact_name: str | None = None
     email: str | None = None
     language: str = "en"
+    phone: str | None = None
+    gst_number: str | None = None
+    city: str | None = None
 
 
 class InvoiceCreate(CamelModel):
@@ -51,9 +54,15 @@ class SendRequest(CamelModel):
 class BuyerOut(CamelModel):
     id: int
     name: str
-    contact_name: str | None
-    email: str | None
+    contact_name: str | None = None
+    email: str | None = None
     language: str
+    phone: str | None = None
+    gst_number: str | None = None
+    city: str | None = None
+    created_at: datetime | None = None
+    total_outstanding: float = 0.0
+    invoice_count: int = 0
 
 
 class InvoiceOut(CamelModel):

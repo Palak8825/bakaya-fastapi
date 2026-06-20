@@ -37,6 +37,9 @@ class Buyer(Base):
     contact_name: Mapped[str | None] = mapped_column(String, nullable=True)
     email: Mapped[str | None] = mapped_column(String, nullable=True)
     language: Mapped[str] = mapped_column(String, default="en")
+    phone: Mapped[str | None] = mapped_column(String, nullable=True)
+    gst_number: Mapped[str | None] = mapped_column(String, nullable=True)
+    city: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     invoices: Mapped[list["Invoice"]] = relationship(back_populates="buyer")
