@@ -25,7 +25,8 @@ MSMEs cannot afford one — so the owner does it personally, and then stops doin
 protect the relationship, so working capital stays stuck for months. Bakaya
 steps in as an external AR desk — the system asks, never the owner.
 
-Bakaya earns a **2–5% facilitation fee** on amounts it helps recover. The unit
+
+**Bakaya** earns a  **2–5% facilitation fee**  on amounts it helps recover. The unit
 economics are simple: every ₹1,000 crore of receivables recovered through
 Bakaya generates ₹20–50 crore in revenue. Against a ₹7.34 lakh crore market —
 ~80% of it owed to the micro and small suppliers Bakaya serves — even a
