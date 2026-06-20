@@ -6,3 +6,4 @@ __pycache__/
 *.sqlite3
 server.log
 server_err.log
+*.pdf
