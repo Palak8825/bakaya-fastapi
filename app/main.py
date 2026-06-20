@@ -38,7 +38,11 @@ app.include_router(odr.router)
 
 @app.on_event("startup")
 def _startup():
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        # Neon DB may be in autosuspend on cold start — first real request will wake it
+        print(f"Warning: init_db skipped on startup: {e}")
 
 
 @app.get("/")
