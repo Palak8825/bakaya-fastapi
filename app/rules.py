@@ -34,12 +34,13 @@ def get_escalation_stage(invoice_date: date, today: date | None = None) -> str:
     since = days_since_invoice(invoice_date, today)
     if since >= 90:
         return STAGE_ODR_READY
+    if since >= 75:
+        return STAGE_FORMAL_DEMAND
     if since >= 46:
         return STAGE_TAX_NUDGE
     if since >= 30:
         return STAGE_NUDGE
     return STAGE_NONE
-    # (note: 'none' below 30; nudge 30-45 is pre-limit, no interest yet)
 
 
 def is_eligible(invoice_date: date, udyam_date: date | None) -> bool:
