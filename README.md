@@ -12,17 +12,26 @@ Large firms run dedicated accounts-receivable desks to chase payments and protec
 MSMEs cannot afford one — so the owner does it personally, and then stops doing it to protect the relationship.
 
 | Stat | Figure | Source |
-|---|---|---|
-| B2B receivables stuck beyond 45 days (India, annual) | ₹10–15 lakh crore | Research estimates |
-| Visible delayed payments | ₹22,000 Cr+ | MSME Ministry |
-| Average payment wait for micro-enterprises | **176 days** | Research avg. |
-| Statutory legal limit under MSMED Act | **45 days** | MSMED Act 2006, s.15 |
-| Addressable MSME businesses | ~3–4 crore | MSME Ministry, Feb 2026 |
+| ---- | ------ | ------ |
+| MSME receivables locked in delayed payments (India) | **₹7.34 lakh crore** (Mar 2024) | GAME–FISME–C2FO, *Delayed Payments Report 3.0* (2025) |
+| Share owed to **micro & small** suppliers | ~80% | GAME–D&B–Omidyar, *Delayed Payments Report* |
+| Formally disputed dues on MSME Samadhaan Portal | ₹22,363 Cr (Jul 2025) | Min. of MSME, Lok Sabha reply |
+| Avg. days to get paid — micro enterprise | **176 days** | CMIE Prowess analysis, 2019 |
+| Statutory payment limit | **45 days** | MSMED Act 2006, s.15 |
+| Udyam-registered MSMEs (eligible for MSMED protection) | **7.83 crore** (Feb 2026) | Ministry of MSME (PIB) |
 
-**The real blocker is fear, not process.** Owners avoid chasing payments to protect relationships, so working capital stays stuck for months. Bakaya steps in as an external AR desk — the system asks, never the owner.
 
-Recovering even 1% of the stuck capital would unlock **₹10,000+ crore** in working capital. Bakaya charges a 2–5% facilitation fee on recovered amounts — a ₹200–500 crore revenue opportunity at modest penetration.
+**The real blocker is fear, not process.** Owners avoid chasing payments to
+protect the relationship, so working capital stays stuck for months. Bakaya
+steps in as an external AR desk — the system asks, never the owner.
 
+Bakaya earns a **2–5% facilitation fee** on amounts it helps recover. The unit
+economics are simple: every ₹1,000 crore of receivables recovered through
+Bakaya generates ₹20–50 crore in revenue. Against a ₹7.34 lakh crore market —
+~80% of it owed to the micro and small suppliers Bakaya serves — even a
+low-single-digit share of recovered receivables is a multi-hundred-crore
+opportunity. The near-term wedge is the **0–90 day pre-litigation window**,
+where no incumbent operates.
 ---
 
 ## The Solution
