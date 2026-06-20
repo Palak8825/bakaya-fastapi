@@ -4,12 +4,8 @@ Pydantic schemas = your Zod schemas. Two jobs:
 1. INPUT validation: declare a model as a route argument and FastAPI validates
    the request body automatically (bad input → 422), no manual checks.
 
-2. OUTPUT shaping: this is the critical bit for reusing your React frontend.
-   Python writes snake_case (invoice_number); your React hooks expect camelCase
-   (invoiceNumber). The `alias_generator=to_camel` + `populate_by_name` config
-   makes Pydantic ACCEPT snake_case from your Python objects but EMIT camelCase
-   JSON — so the frontend sees byte-identical keys to the TS API and needs zero
-   changes. This is the "JSON contract" discipline in action.
+2. OUTPUT shaping: snake_case in Python, camelCase in JSON — the frontend sees
+   byte-identical keys to the TS API and needs zero changes.
 """
 from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict
@@ -20,12 +16,13 @@ class CamelModel(BaseModel):
     """Base: snake_case in Python, camelCase in JSON."""
     model_config = ConfigDict(
         alias_generator=to_camel,
-        populate_by_name=True,     # still accept snake_case when constructing
-        from_attributes=True,      # allow building straight from SQLAlchemy objects
+        populate_by_name=True,
+        from_attributes=True,
     )
 
 
-# ---- Input bodies (validation) ----
+# ---- Input bodies ----
+
 class BuyerCreate(CamelModel):
     name: str
     contact_name: str | None = None
@@ -42,6 +39,23 @@ class InvoiceCreate(CamelModel):
     amount: float
     invoice_date: date
     due_date: date | None = None
+    description: str | None = None
+    po_number: str | None = None
+
+
+class InvoiceUpdate(CamelModel):
+    amount: float | None = None
+    due_date: date | None = None
+    status: str | None = None
+    description: str | None = None
+    po_number: str | None = None
+
+
+class EscalationInput(CamelModel):
+    stage: str
+    channel: str
+    approved_by_owner: bool
+    custom_message: str | None = None
 
 
 class SendRequest(CamelModel):
@@ -51,6 +65,7 @@ class SendRequest(CamelModel):
 
 
 # ---- Output shapes ----
+
 class BuyerOut(CamelModel):
     id: int
     name: str
@@ -74,10 +89,72 @@ class InvoiceOut(CamelModel):
     due_date: date | None
     status: str
     escalation_stage: str
-    # computed fields (added in the route, like the TS app does)
     days_overdue: int | None = None
     interest_accrued: float | None = None
     buyer_name: str | None = None
+    created_at: datetime | None = None
+    description: str | None = None
+    po_number: str | None = None
+
+
+class EscalationEventOut(CamelModel):
+    id: int
+    invoice_id: int
+    stage: str
+    message: str
+    sent_at: datetime
+    channel: str
+    approved_by_owner: bool
+    language: str | None = None
+
+
+class InvoiceDetailOut(CamelModel):
+    id: int
+    buyer_id: int
+    invoice_number: str
+    amount: float
+    invoice_date: date
+    due_date: date | None
+    status: str
+    escalation_stage: str
+    days_overdue: int | None = None
+    interest_accrued: float | None = None
+    buyer_name: str | None = None
+    created_at: datetime | None = None
+    description: str | None = None
+    po_number: str | None = None
+    escalation_events: list[EscalationEventOut] = []
+
+
+class InterestCalcOut(CamelModel):
+    invoice_id: int
+    principal_amount: float
+    days_overdue: int
+    rbi_rate: float
+    applicable_rate: float
+    daily_interest: float
+    total_interest: float
+    total_due: float
+    is_legally_overdue: bool
+    section_43bh_applies: bool | None = None
+
+
+class OverdueStageOut(CamelModel):
+    stage: str
+    count: int
+    amount: float
+    label: str | None = None
+
+
+class ActivityItemOut(CamelModel):
+    id: int
+    invoice_id: int
+    invoice_number: str
+    buyer_name: str
+    stage: str
+    message: str
+    sent_at: datetime
+    channel: str
 
 
 class SendResult(CamelModel):

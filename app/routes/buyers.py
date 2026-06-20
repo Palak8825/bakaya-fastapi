@@ -70,3 +70,12 @@ def update_buyer(id: int, body: BuyerCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(buyer)
     return _with_stats(buyer, db)
+
+
+@router.delete("/buyers/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_buyer(id: int, db: Session = Depends(get_db)):
+    buyer = db.get(Buyer, id)
+    if buyer is None:
+        raise HTTPException(404, "Buyer not found")
+    db.delete(buyer)
+    db.commit()

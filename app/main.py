@@ -49,3 +49,8 @@ def root():
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/healthz")
+def healthz():
+    return {"status": "ok"}

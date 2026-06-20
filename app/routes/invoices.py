@@ -1,35 +1,23 @@
-"""
-Invoices router = your invoices.ts, in FastAPI form.
-
-Study the three patterns here; every other route is a variation:
-
-  1. Path params + DI:  Express `req.params.id` + imported `db`
-                        → FastAPI `id: int` arg + `db: Session = Depends(get_db)`
-  2. Validated body:    Express manual Zod parse of `req.body`
-                        → FastAPI `body: InvoiceCreate` (auto-validated → 422)
-  3. Response shaping:  Express `res.status(201).json({...})`
-                        → `return Model(...)` with `response_model=` + status_code
-
-The /send route is the showpiece: it reuses rules.py, notify.py, and (where you
-plug it in) your Groq drafting — same orchestration as the TS version.
-"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Buyer, Invoice, EscalationEvent
-from ..rules import calculate_interest, get_escalation_stage
+from ..rules import calculate_interest, get_escalation_stage, RBI_BANK_RATE
 from ..notify import send_notice
 from ..drafting import draft_message
 from ..config import settings
-from ..schemas import InvoiceCreate, InvoiceOut, SendRequest, SendResult
+from ..schemas import (
+    InvoiceCreate, InvoiceUpdate, InvoiceOut, InvoiceDetailOut,
+    EscalationInput, EscalationEventOut, InterestCalcOut,
+    SendRequest, SendResult,
+)
 
 router = APIRouter(prefix="/api", tags=["invoices"])
 
 
 def _to_out(inv: Invoice, buyer: Buyer | None = None) -> InvoiceOut:
-    """Attach computed interest/stage, like the TS list/detail handlers do."""
     calc = calculate_interest(float(inv.amount), inv.invoice_date)
     return InvoiceOut(
         id=inv.id, buyer_id=inv.buyer_id, invoice_number=inv.invoice_number,
@@ -37,6 +25,28 @@ def _to_out(inv: Invoice, buyer: Buyer | None = None) -> InvoiceOut:
         status=inv.status, escalation_stage=inv.escalation_stage,
         days_overdue=calc["msmedDaysOverdue"], interest_accrued=calc["totalInterest"],
         buyer_name=buyer.name if buyer else None,
+        created_at=inv.created_at,
+    )
+
+
+def _event_out(e: EscalationEvent) -> EscalationEventOut:
+    return EscalationEventOut(
+        id=e.id, invoice_id=e.invoice_id, stage=e.stage, message=e.message,
+        sent_at=e.sent_at, channel=e.channel, approved_by_owner=e.approved_by_owner,
+        language=e.language,
+    )
+
+
+def _to_detail(inv: Invoice, buyer: Buyer | None, events: list[EscalationEvent]) -> InvoiceDetailOut:
+    calc = calculate_interest(float(inv.amount), inv.invoice_date)
+    return InvoiceDetailOut(
+        id=inv.id, buyer_id=inv.buyer_id, invoice_number=inv.invoice_number,
+        amount=float(inv.amount), invoice_date=inv.invoice_date, due_date=inv.due_date,
+        status=inv.status, escalation_stage=inv.escalation_stage,
+        days_overdue=calc["msmedDaysOverdue"], interest_accrued=calc["totalInterest"],
+        buyer_name=buyer.name if buyer else None,
+        created_at=inv.created_at,
+        escalation_events=[_event_out(e) for e in events],
     )
 
 
@@ -51,18 +61,39 @@ def list_invoices(buyer_id: int | None = None, status: str | None = None, db: Se
     return [_to_out(inv, buyer) for inv, buyer in rows]
 
 
-@router.get("/invoices/{id}", response_model=InvoiceOut)
+@router.get("/invoices/{id}", response_model=InvoiceDetailOut)
 def get_invoice(id: int, db: Session = Depends(get_db)):
     row = db.execute(select(Invoice, Buyer).join(Buyer).where(Invoice.id == id)).first()
     if row is None:
         raise HTTPException(404, "Invoice not found")
     inv, buyer = row
+    events = db.execute(
+        select(EscalationEvent)
+        .where(EscalationEvent.invoice_id == id)
+        .order_by(EscalationEvent.sent_at)
+    ).scalars().all()
+    return _to_detail(inv, buyer, list(events))
+
+
+@router.patch("/invoices/{id}", response_model=InvoiceOut)
+def update_invoice(id: int, body: InvoiceUpdate, db: Session = Depends(get_db)):
+    row = db.execute(select(Invoice, Buyer).join(Buyer).where(Invoice.id == id)).first()
+    if row is None:
+        raise HTTPException(404, "Invoice not found")
+    inv, buyer = row
+    if body.amount is not None:
+        inv.amount = body.amount
+    if body.due_date is not None:
+        inv.due_date = body.due_date
+    if body.status is not None:
+        inv.status = body.status
+    db.commit()
+    db.refresh(inv)
     return _to_out(inv, buyer)
 
 
 @router.post("/invoices", response_model=InvoiceOut, status_code=status.HTTP_201_CREATED)
 def create_invoice(body: InvoiceCreate, db: Session = Depends(get_db)):
-    # body is already validated by Pydantic before we get here.
     inv = Invoice(
         buyer_id=body.buyer_id, invoice_number=body.invoice_number,
         amount=body.amount, invoice_date=body.invoice_date, due_date=body.due_date,
@@ -94,6 +125,63 @@ def mark_paid(id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(inv)
     return _to_out(inv, buyer)
+
+
+@router.post("/invoices/{id}/escalate", response_model=EscalationEventOut, status_code=status.HTTP_201_CREATED)
+def escalate_invoice(id: int, body: EscalationInput, db: Session = Depends(get_db)):
+    row = db.execute(select(Invoice, Buyer).join(Buyer).where(Invoice.id == id)).first()
+    if row is None:
+        raise HTTPException(404, "Invoice not found")
+    inv, buyer = row
+
+    amount = float(inv.amount)
+    calc = calculate_interest(amount, inv.invoice_date)
+    language = buyer.language or "English"
+
+    if body.custom_message:
+        message = body.custom_message
+    else:
+        message, _ = draft_message(
+            stage=body.stage, buyer_name=buyer.name, invoice_number=inv.invoice_number,
+            amount=amount, interest=calc["totalInterest"], total_due=calc["totalDue"],
+            days_overdue=calc["msmedDaysOverdue"],
+            rate_pct=round(calc["applicableRate"] * 100, 1),
+            flag43bh=calc["section43bhApplies"], language=language,
+        )
+
+    event = EscalationEvent(
+        invoice_id=inv.id, stage=body.stage, message=message,
+        channel=body.channel, approved_by_owner=body.approved_by_owner, language=language,
+    )
+    db.add(event)
+    inv.escalation_stage = body.stage
+    inv.status = "escalating"
+    db.commit()
+    db.refresh(event)
+    return _event_out(event)
+
+
+@router.get("/invoices/{id}/interest", response_model=InterestCalcOut)
+def get_invoice_interest(id: int, db: Session = Depends(get_db)):
+    inv = db.get(Invoice, id)
+    if inv is None:
+        raise HTTPException(404, "Invoice not found")
+    amount = float(inv.amount)
+    calc = calculate_interest(amount, inv.invoice_date)
+    days = calc["msmedDaysOverdue"]
+    daily = calc["totalInterest"] / days if days > 0 else 0.0
+    return InterestCalcOut(
+        invoice_id=inv.id,
+        principal_amount=amount,
+        days_overdue=days,
+        rbi_rate=float(RBI_BANK_RATE),
+        applicable_rate=calc["applicableRate"],
+        daily_interest=round(daily, 2),
+        total_interest=calc["totalInterest"],
+        total_due=calc["totalDue"],
+        is_legally_overdue=days > 0,
+        section_43bh_applies=calc["section43bhApplies"],
+    )
 
 
 @router.post("/invoices/{id}/send", response_model=SendResult)
