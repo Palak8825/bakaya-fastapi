@@ -60,7 +60,8 @@ def odr_pack(id: int, db: Session = Depends(get_db)):
     section("Parties")
     line("Supplier (claimant):", "MSME Supplier (Udyam-registered)")
     line("Buyer (respondent):", buyer.name)
-    line("Buyer contact:", buyer.contact_name or "-")
+    line("Buyer contact name:", buyer.contact_name or "(not recorded)")
+    line("Buyer email:", buyer.email or "(not recorded)")
     pdf.ln(2)
 
     section("Invoice")
@@ -85,6 +86,27 @@ def odr_pack(id: int, db: Session = Depends(get_db)):
                      new_x="LMARGIN", new_y="NEXT")
     else:
         pdf.cell(0, 6, "- No escalation events recorded yet.", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+
+    section("Claim statement")
+    pdf.multi_cell(0, 5,
+        f"The claimant seeks recovery of Rs {amount:,.2f} principal and "
+        f"Rs {calc['totalInterest']:,.2f} statutory interest (total Rs {calc['totalDue']:,.2f}) "
+        f"under Sections 15-17 of the MSMED Act 2006. Interest accrues at "
+        f"{float(STATUTORY_RATE)*100:.1f}% p.a. (three times the RBI Bank Rate) "
+        f"compounded monthly from the date of expiry of the 45-day payment period.")
+    pdf.ln(4)
+
+    section("Document checklist")
+    for item in [
+        "Invoice copy",
+        "Udyam Registration Certificate (supplier)",
+        "Purchase Order / Work Order",
+        "Delivery proof (LR / e-way bill / GRN)",
+        "Payment reminder emails / escalation records",
+        "Bank statement showing non-receipt of payment",
+    ]:
+        pdf.cell(0, 6, f"[ ]  {item}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(4)
 
     section("Filing note")
