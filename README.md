@@ -171,7 +171,7 @@ POST /api/escalation/run
 │                                                              │
 │  ┌─────────────┐  ┌──────────────┐  ┌─────────────────────┐ │
 │  │  rules.py   │  │ drafting.py  │  │     notify.py       │ │
-│  │ MSMED law   │  │ Groq / tmpl  │  │  SMTP / simulation  │ │
+│  │ MSMED law   │  │ Groq / tmpl  │  │       SMTP          │ │
 │  │ pure math   │  │ tone only    │  │                     │ │
 │  └─────────────┘  └──────────────┘  └─────────────────────┘ │
 │                                                              │
@@ -182,9 +182,9 @@ POST /api/escalation/run
 └─────────────────────────┼────────────────────────────────────┘
                           │
               ┌───────────┴────────────┐
-              │  SQLite  (dev/demo)    │
               │  PostgreSQL / Neon     │
-              │     (production)       │
+              │      for all modes     │
+              │                        │
               └───────────────────────-┘
 
 External services
@@ -306,12 +306,12 @@ uvicorn app.main:app --reload --port 8099
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `DATABASE_URL` | `sqlite:///./bakaya.db` | SQLite (dev) or `postgresql+psycopg://…` (prod) |
-| `GROQ_API_KEY` | _(empty)_ | LLM drafting — omit to use template fallback (app still works) |
-| `EMAIL_MODE` | `simulation` | `real` to send actual emails via Gmail SMTP |
-| `GMAIL_ADDRESS` | _(empty)_ | Sender address for real email |
-| `GMAIL_APP_PASSWORD` | _(empty)_ | Gmail app password (not your login password) |
-| `DEMO_RECIPIENT_EMAIL` | _(empty)_ | Redirect all outbound notices to one inbox during demos |
+| `DATABASE_URL` | `postgresql+psycopg://USER:PASSWORD@HOST/DBNAME?sslmode=require` |  `postgresql+psycopg://…` (prod) |
+| `GROQ_API_KEY` | _(empty-sensitive)_ | LLM drafting — omit to use template fallback (app still works) |
+| `EMAIL_MODE` | `real      ` |  to send actual emails via Gmail SMTP |
+| `GMAIL_ADDRESS` | _(empty-sensitive)_ | Sender address for real email |
+| `GMAIL_APP_PASSWORD` | _(empty-sensitive)_ | Gmail app password (not your login password) |
+| `DEMO_RECIPIENT_EMAIL` | _(empty-sensitive)_ | Redirect all outbound notices to one inbox during demos |
 
 ### Quick smoke test
 
@@ -329,7 +329,7 @@ curl localhost:8099/api/invoices/1/odr-pack -o odr.pdf
 |---|---|---|
 | `fastapi` | latest | Web framework |
 | `uvicorn[standard]` | latest | ASGI server |
-| `sqlalchemy` | latest | ORM (SQLite / Postgres) |
+| `sqlalchemy` | latest | ORM ( Postgres) |
 | `pydantic` + `pydantic-settings` | latest | Schema validation, env config, camelCase aliasing |
 | `groq` | latest | LLM API client |
 | `fpdf2` | latest | PDF generation for ODR pack |
