@@ -40,6 +40,7 @@ class Buyer(Base):
     phone: Mapped[str | None] = mapped_column(String, nullable=True)
     gst_number: Mapped[str | None] = mapped_column(String, nullable=True)
     city: Mapped[str | None] = mapped_column(String, nullable=True)
+    udyam_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     invoices: Mapped[list["Invoice"]] = relationship(back_populates="buyer")

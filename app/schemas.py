@@ -31,6 +31,7 @@ class BuyerCreate(CamelModel):
     phone: str | None = None
     gst_number: str | None = None
     city: str | None = None
+    udyam_date: date | None = None
 
 
 class InvoiceCreate(CamelModel):
@@ -75,6 +76,7 @@ class BuyerOut(CamelModel):
     phone: str | None = None
     gst_number: str | None = None
     city: str | None = None
+    udyam_date: date | None = None
     created_at: datetime | None = None
     total_outstanding: float = 0.0
     invoice_count: int = 0

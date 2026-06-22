@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Buyer, Invoice, EscalationEvent
-from ..rules import calculate_interest, get_escalation_stage, STAGE_ORDER
+from ..rules import calculate_interest, get_escalation_stage, is_eligible, STAGE_ORDER
 from ..drafting import draft_message
 from ..notify import send_notice
 from ..config import settings
@@ -38,16 +38,18 @@ def _stage_index(stage: str) -> int:
 class SweepRow(CamelModel):
     invoice_id: int
     invoice_number: str
-    action: str               # "escalated" | "no_change"
+    action: str               # "escalated" | "no_change" | "ineligible"
     from_stage: str | None = None
     to_stage: str
     delivery_status: str | None = None
     source: str | None = None
+    skip_reason: str | None = None
 
 
 class SweepResult(CamelModel):
     processed: int
     escalated: int
+    skipped_ineligible: int
     results: list[SweepRow]
 
 
@@ -56,10 +58,21 @@ def run_sweep(db: Session = Depends(get_db)):
     rows = db.execute(select(Invoice, Buyer).join(Buyer)).all()
     results: list[SweepRow] = []
     escalated = 0
+    skipped_ineligible = 0
 
     for inv, buyer in rows:
         stored = inv.escalation_stage or "none"
         computed = get_escalation_stage(inv.invoice_date)
+
+        # Silpi Industries guardrail: skip if Udyam registration postdates invoice.
+        if not is_eligible(inv.invoice_date, buyer.udyam_date):
+            skipped_ineligible += 1
+            results.append(SweepRow(
+                invoice_id=inv.id, invoice_number=inv.invoice_number,
+                action="ineligible", from_stage=stored, to_stage=stored,
+                skip_reason="Udyam registration postdates invoice (Silpi Industries SC 2021)",
+            ))
+            continue
 
         # Only act if the invoice has genuinely advanced to a higher stage.
         if computed == "none" or _stage_index(computed) <= _stage_index(stored):
@@ -109,4 +122,5 @@ def run_sweep(db: Session = Depends(get_db)):
             delivery_status=delivery_status, source=source,
         ))
 
-    return SweepResult(processed=len(rows), escalated=escalated, results=results)
+    return SweepResult(processed=len(rows), escalated=escalated,
+                       skipped_ineligible=skipped_ineligible, results=results)
