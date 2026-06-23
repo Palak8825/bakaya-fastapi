@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Buyer, Invoice, EscalationEvent
-from ..rules import calculate_interest, STATUTORY_RATE, RBI_BANK_RATE
+from ..rules import calculate_interest, _effective_due, STATUTORY_RATE, RBI_BANK_RATE
 
 router = APIRouter(prefix="/api", tags=["odr"])
 
@@ -25,11 +25,11 @@ LIGHT    = (245, 245, 245)
 DARK     = (30,  30,  30)
 WHITE    = (255, 255, 255)
 
-STAGE_DAY = {
-    "nudge":          "Day 30",
-    "tax_nudge":      "Day 46",
-    "formal_demand":  "Day 75",
-    "odr_ready":      "Day 90+",
+STAGE_LABEL = {
+    "nudge":          "Due −15",
+    "tax_nudge":      "Due +1",
+    "formal_demand":  "Due +30",
+    "odr_ready":      "Due +45",
 }
 STAGE_DESC = {
     "nudge":          "Relationship-safe reminder issued",
@@ -166,21 +166,14 @@ def odr_pack(id: int, db: Session = Depends(get_db)):
     ).scalars().all()
 
     amount     = float(inv.amount)
-    calc       = calculate_interest(amount, inv.invoice_date)
+    calc       = calculate_interest(amount, inv.invoice_date, inv.due_date)
     days_over  = calc["msmedDaysOverdue"]
     today      = date.today()
     val_date   = today.strftime("%d %B %Y")
-    due_date   = inv.invoice_date.__class__(
-        inv.invoice_date.year + (inv.invoice_date.month // 12),
-        (inv.invoice_date.month % 12) + 1,
-        min(inv.invoice_date.day,
-            [31,29,31,30,31,30,31,31,30,31,30,31][
-                (inv.invoice_date.month % 12)])
-    ) if False else None  # calculated below
 
-    # 45-day statutory due date
+    # Effective due date: min(agreed due, invoice + 45) per MSMED Act s.15
     from datetime import timedelta
-    stat_due = inv.invoice_date + timedelta(days=45)
+    stat_due = _effective_due(inv.invoice_date, inv.due_date)
 
     months_over = days_over / 30
     interest_working = (
@@ -243,7 +236,7 @@ def odr_pack(id: int, db: Session = Depends(get_db)):
                   f"{inv.invoice_number}  |  {inv.invoice_date.strftime('%d %b %Y')}")
     pdf.claim_row("Principal amount due",
                   f"Rs {amount:,.0f}", bold_value=True)
-    pdf.claim_row("Statutory due date (s.15, 45 days)",
+    pdf.claim_row("Effective due date (s.15)",
                   stat_due.strftime("%d %b %Y"), bold_value=True)
     pdf.claim_row("Days overdue (as of valuation)",
                   f"{days_over} days", bold_value=True)
@@ -269,7 +262,7 @@ def odr_pack(id: int, db: Session = Depends(get_db)):
 
     if events:
         for ev in events:
-            day_label = STAGE_DAY.get(ev.stage, ev.stage.upper())
+            day_label = STAGE_LABEL.get(ev.stage, ev.stage.upper())
             description = STAGE_DESC.get(ev.stage, ev.stage)
             lang_note = f" ({ev.language})" if ev.language and ev.language.lower() not in ("en", "english") else ""
             y = pdf.get_y()
@@ -318,12 +311,12 @@ def odr_pack(id: int, db: Session = Depends(get_db)):
     pdf.section_header("5", "DOCUMENT CHECKLIST")
 
     checklist = [
-        (True,  f"Tax invoice ({inv.invoice_number})"),
-        (True,  "Purchase order / work order"),
-        (True,  "Udyam Registration Certificate"),
-        (False, "Proof of delivery / acceptance"),
-        (False, "Payment reminder emails / escalation records"),
-        (False, "Bank statement showing non-receipt of payment"),
+        (True,         f"Tax invoice ({inv.invoice_number})"),
+        (True,         "Purchase order / work order"),
+        (True,         "Udyam Registration Certificate"),
+        (False,        "Proof of delivery / acceptance"),
+        (bool(events), "Payment reminder emails / escalation records"),
+        (False,        "Bank statement showing non-receipt of payment"),
     ]
 
     col2_x = 18 + (192 - 18) / 2
