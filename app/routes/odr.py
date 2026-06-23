@@ -26,7 +26,7 @@ DARK     = (30,  30,  30)
 WHITE    = (255, 255, 255)
 
 STAGE_LABEL = {
-    "nudge":          "Due −15",
+    "nudge":          "Due -15",
     "tax_nudge":      "Due +1",
     "formal_demand":  "Due +30",
     "odr_ready":      "Due +45",
