@@ -62,7 +62,7 @@ def run_sweep(db: Session = Depends(get_db)):
 
     for inv, buyer in rows:
         stored = inv.escalation_stage or "none"
-        computed = get_escalation_stage(inv.invoice_date)
+        computed = get_escalation_stage(inv.invoice_date, inv.due_date)
 
         # Silpi Industries guardrail: skip if Udyam registration postdates invoice.
         if not is_eligible(inv.invoice_date, buyer.udyam_date):
@@ -84,7 +84,7 @@ def run_sweep(db: Session = Depends(get_db)):
 
         amount = float(inv.amount)
         language = buyer.language or "English"
-        calc = calculate_interest(amount, inv.invoice_date)
+        calc = calculate_interest(amount, inv.invoice_date, inv.due_date)
 
         message, source = draft_message(
             stage=computed, buyer_name=buyer.name, invoice_number=inv.invoice_number,

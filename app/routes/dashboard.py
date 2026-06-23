@@ -46,7 +46,7 @@ def dashboard_summary(db: Session = Depends(get_db)):
 
     for inv in invoices:
         amount = float(inv.amount)
-        calc = calculate_interest(amount, inv.invoice_date)
+        calc = calculate_interest(amount, inv.invoice_date, inv.due_date)
         days = calc["msmedDaysOverdue"]
 
         if inv.status == "paid":

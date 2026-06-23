@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Buyer, Invoice, EscalationEvent
-from ..rules import calculate_interest, get_escalation_stage, RBI_BANK_RATE
+from ..rules import calculate_interest, get_escalation_stage, is_eligible, RBI_BANK_RATE
 from ..notify import send_notice
 from ..drafting import draft_message
 from ..config import settings
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api", tags=["invoices"])
 
 
 def _to_out(inv: Invoice, buyer: Buyer | None = None) -> InvoiceOut:
-    calc = calculate_interest(float(inv.amount), inv.invoice_date)
+    calc = calculate_interest(float(inv.amount), inv.invoice_date, inv.due_date)
     return InvoiceOut(
         id=inv.id, buyer_id=inv.buyer_id, invoice_number=inv.invoice_number,
         amount=float(inv.amount), invoice_date=inv.invoice_date, due_date=inv.due_date,
@@ -38,7 +38,7 @@ def _event_out(e: EscalationEvent) -> EscalationEventOut:
 
 
 def _to_detail(inv: Invoice, buyer: Buyer | None, events: list[EscalationEvent]) -> InvoiceDetailOut:
-    calc = calculate_interest(float(inv.amount), inv.invoice_date)
+    calc = calculate_interest(float(inv.amount), inv.invoice_date, inv.due_date)
     return InvoiceDetailOut(
         id=inv.id, buyer_id=inv.buyer_id, invoice_number=inv.invoice_number,
         amount=float(inv.amount), invoice_date=inv.invoice_date, due_date=inv.due_date,
@@ -101,7 +101,7 @@ def create_invoice(body: InvoiceCreate, db: Session = Depends(get_db)):
     inv = Invoice(
         buyer_id=body.buyer_id, invoice_number=body.invoice_number,
         amount=body.amount, invoice_date=body.invoice_date, due_date=body.due_date,
-        escalation_stage=get_escalation_stage(body.invoice_date),
+        escalation_stage=get_escalation_stage(body.invoice_date, body.due_date),
     )
     db.add(inv)
     db.commit()
@@ -140,7 +140,7 @@ def escalate_invoice(id: int, body: EscalationInput, db: Session = Depends(get_d
     inv, buyer = row
 
     amount = float(inv.amount)
-    calc = calculate_interest(amount, inv.invoice_date)
+    calc = calculate_interest(amount, inv.invoice_date, inv.due_date)
     language = buyer.language or "English"
 
     if body.custom_message:
@@ -168,13 +168,15 @@ def escalate_invoice(id: int, body: EscalationInput, db: Session = Depends(get_d
 
 @router.get("/invoices/{id}/interest", response_model=InterestCalcOut)
 def get_invoice_interest(id: int, db: Session = Depends(get_db)):
-    inv = db.get(Invoice, id)
-    if inv is None:
+    row = db.execute(select(Invoice, Buyer).join(Buyer).where(Invoice.id == id)).first()
+    if row is None:
         raise HTTPException(404, "Invoice not found")
+    inv, buyer = row
     amount = float(inv.amount)
-    calc = calculate_interest(amount, inv.invoice_date)
+    calc = calculate_interest(amount, inv.invoice_date, inv.due_date)
     days = calc["msmedDaysOverdue"]
     daily = calc["totalInterest"] / days if days > 0 else 0.0
+    eligible = is_eligible(inv.invoice_date, buyer.udyam_date)
     return InterestCalcOut(
         invoice_id=inv.id,
         principal_amount=amount,
@@ -186,6 +188,7 @@ def get_invoice_interest(id: int, db: Session = Depends(get_db)):
         total_due=calc["totalDue"],
         is_legally_overdue=days > 0,
         section_43bh_applies=calc["section43bhApplies"],
+        eligible=eligible,
     )
 
 
@@ -199,9 +202,9 @@ def send_notice_route(id: int, body: SendRequest, db: Session = Depends(get_db))
     inv, buyer = row
 
     amount = float(inv.amount)
-    stage = body.stage or get_escalation_stage(inv.invoice_date)
+    stage = body.stage or get_escalation_stage(inv.invoice_date, inv.due_date)
     language = body.language or buyer.language or "English"
-    calc = calculate_interest(amount, inv.invoice_date)
+    calc = calculate_interest(amount, inv.invoice_date, inv.due_date)
 
     # --- Draft the message --------------------------------------------------
     # In the real app this calls Groq (your drafting.py). For the skeleton we
@@ -248,8 +251,8 @@ def draft_only(id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Invoice not found")
     inv, buyer = row
     amount = float(inv.amount)
-    stage = get_escalation_stage(inv.invoice_date)
-    calc = calculate_interest(amount, inv.invoice_date)
+    stage = get_escalation_stage(inv.invoice_date, inv.due_date)
+    calc = calculate_interest(amount, inv.invoice_date, inv.due_date)
     message, source = draft_message(
         stage=stage, buyer_name=buyer.name, invoice_number=inv.invoice_number,
         amount=amount, interest=calc["totalInterest"], total_due=calc["totalDue"],

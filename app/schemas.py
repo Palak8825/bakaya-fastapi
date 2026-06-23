@@ -139,6 +139,7 @@ class InterestCalcOut(CamelModel):
     total_due: float
     is_legally_overdue: bool
     section_43bh_applies: bool | None = None
+    eligible: bool = False
 
 
 class OverdueStageOut(CamelModel):

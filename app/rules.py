@@ -7,7 +7,7 @@ Streamlit rules_engine.py.
 This is also your "value beyond a generic LLM": deterministic, auditable MSMED
 math that an LLM cannot be trusted to compute.
 """
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 # --- Canonical constants (keep in ONE place, like RBI_BANK_RATE in interest.ts) ---
@@ -15,7 +15,7 @@ PAYMENT_LIMIT_DAYS = 45
 RBI_BANK_RATE = Decimal("0.055")          # 5.50% (June 2026) — the Bank Rate, not repo
 STATUTORY_RATE = RBI_BANK_RATE * 3        # 3× Bank Rate = 16.5% p.a., per MSMED s.16
 
-# Canonical 5-stage ladder (clock = days since invoice date), matching the TS app.
+# Canonical 5-stage ladder matching the TS app.
 STAGE_NONE = "none"
 STAGE_NUDGE = "nudge"
 STAGE_TAX_NUDGE = "tax_nudge"
@@ -29,16 +29,31 @@ def days_since_invoice(invoice_date: date, today: date | None = None) -> int:
     return (today - invoice_date).days
 
 
-def get_escalation_stage(invoice_date: date, today: date | None = None) -> str:
-    """5-stage state machine. Same thresholds as getEscalationStageForInvoiceDate()."""
-    since = days_since_invoice(invoice_date, today)
-    if since >= 90:
+def _effective_due(invoice_date: date, due_date: date | None) -> date:
+    """MSMED Act s.2(b): agreed credit period cannot exceed 45 days."""
+    cap = invoice_date + timedelta(days=PAYMENT_LIMIT_DAYS)
+    return min(due_date, cap) if due_date else cap
+
+
+def get_escalation_stage(invoice_date: date, due_date: date | None = None, today: date | None = None) -> str:
+    """5-stage state machine anchored to effective_due, not raw invoice_date.
+
+    Thresholds (days past effective_due):
+      -15 to 0  → nudge   (approaching limit)
+       1 to 29  → tax_nudge
+      30 to 44  → formal_demand
+      45+       → odr_ready
+    """
+    today = today or date.today()
+    eff_due = _effective_due(invoice_date, due_date)
+    days_past_due = (today - eff_due).days
+    if days_past_due >= 45:
         return STAGE_ODR_READY
-    if since >= 75:
+    if days_past_due >= 30:
         return STAGE_FORMAL_DEMAND
-    if since >= 46:
+    if days_past_due >= 1:
         return STAGE_TAX_NUDGE
-    if since >= 30:
+    if days_past_due >= -15:
         return STAGE_NUDGE
     return STAGE_NONE
 
@@ -50,15 +65,16 @@ def is_eligible(invoice_date: date, udyam_date: date | None) -> bool:
     return udyam_date < invoice_date
 
 
-def calculate_interest(amount: float, invoice_date: date, today: date | None = None) -> dict:
-    """Compound interest, monthly rests, at 3× Bank Rate, starting day 46.
+def calculate_interest(amount: float, invoice_date: date, due_date: date | None = None, today: date | None = None) -> dict:
+    """Compound interest, monthly rests, at 3× Bank Rate, starting day after effective_due.
 
     Returns a dict mirroring the TS calculateInterest() result so the API
     response shape can stay identical.
     """
     amount = Decimal(str(amount))
-    since = days_since_invoice(invoice_date, today)
-    days_overdue = max(0, since - PAYMENT_LIMIT_DAYS)
+    today = today or date.today()
+    eff_due = _effective_due(invoice_date, due_date)
+    days_overdue = max(0, (today - eff_due).days)
 
     if days_overdue <= 0:
         total_interest = Decimal("0")
