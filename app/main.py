@@ -14,9 +14,10 @@ builds from your Pydantic models — replaces hand-maintained openapi.yaml).
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from .config import settings
-from .database import init_db
+from .database import init_db, get_db
 from .routes import buyers, invoices, dashboard, escalation, odr
 
 app = FastAPI(title="Bakaya API (FastAPI edition)")
@@ -52,7 +53,13 @@ def root():
 
 @app.api_route("/api/health", methods=["GET", "HEAD"])
 def health():
-    return {"status": "ok"}
+    try:
+        db = next(get_db())
+        db.execute(text("SELECT 1"))
+        db.close()
+        return {"status": "ok", "db": "ok"}
+    except Exception as e:
+        return {"status": "ok", "db": f"unreachable: {e}"}
 
 
 @app.get("/api/healthz")
