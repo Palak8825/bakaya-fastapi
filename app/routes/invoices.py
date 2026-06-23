@@ -214,8 +214,11 @@ def send_notice_route(id: int, body: SendRequest, db: Session = Depends(get_db))
         flag43bh=calc["section43bhApplies"], language=language,
     )
 
-    # --- Resolve recipient (demo override → buyer email) --------------------
-    recipient = body.to or buyer.email or settings.demo_recipient_email
+    # --- Resolve recipient (buyer email if valid, else demo fallback) --------
+    def _valid(addr: str | None) -> str | None:
+        return addr if addr and "@" in addr else None
+
+    recipient = _valid(body.to) or _valid(buyer.email) or settings.demo_recipient_email
     if not recipient:
         raise HTTPException(422, "No recipient: add an email to the buyer or set demo_recipient_email")
 

@@ -94,7 +94,8 @@ def run_sweep(db: Session = Depends(get_db)):
             flag43bh=calc["section43bhApplies"], language=language,
         )
 
-        recipient = settings.demo_recipient_email or buyer.email
+        _valid_email = lambda a: a if a and "@" in a else None
+        recipient = settings.demo_recipient_email or _valid_email(buyer.email)
         if recipient:
             delivery = send_notice(
                 to=recipient,

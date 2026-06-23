@@ -1,9 +1,43 @@
-.env
+﻿# Python
 __pycache__/
 *.pyc
 *.pyo
-*.db
-*.sqlite3
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Environment
+.env
+.env.local
+
+# Database
+bakaya.db
+*.db-shm
+*.db-wal
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.npmrc
+
+# Logs
+*.log
 server.log
 server_err.log
-*.pdf
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PDFs — ignore submission doc and generated test packs
+Bakaya_TheEdgeCases_InnovateZ2026.pdf
+ODR-Pack-Test-*.pdf
